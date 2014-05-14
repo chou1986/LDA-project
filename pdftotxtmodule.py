@@ -3,11 +3,12 @@ from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
 from pdfminer.pdfpage import PDFPage
 from cStringIO import StringIO
+import os
 
 def convert_pdf_to_txt(path, output):
     rsrcmgr = PDFResourceManager()
     retstr = StringIO()
-    codec = 'utf-8'
+    codec = 'ascii'
     laparams = LAParams()
     device = TextConverter(rsrcmgr, retstr, codec=codec, laparams=laparams)
     fp = file(path, 'rb')
@@ -27,4 +28,13 @@ def convert_pdf_to_txt(path, output):
     foutput.write(str)
     return str
 
-print convert_pdf_to_txt('na.pdf', 'na.txt')
+DIR_pdfs = 'pdfs/'
+DIR_corpus = 'corpus/'
+
+for pdf_file in os.listdir(DIR_pdfs):
+    convert_pdf_to_txt(DIR_pdfs+pdf_file, DIR_corpus+pdf_file.replace(".pdf", ".txt"))
+    print "pdf"+pdf_file+" has been converted"
+
+print "Done."
+
+
