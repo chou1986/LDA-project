@@ -1,0 +1,1246 @@
+2013 IEEE Conference on Computer Vision and Pattern Recognition
+2013 IEEE Conference on Computer Vision and Pattern Recognition
+2013 IEEE Conference on Computer Vision and Pattern Recognition
+
+3D Pictorial Structures for Multiple View Articulated Pose Estimation
+
+Magnus Burenius, Josephine Sullivan, Stefan Carlsson
+
+CVAP, KTH Royal Institute of Technology, Stockholm, Sweden
+
+Abstract
+
+We consider the problem of automatically estimating the
+3D pose of humans from images, taken from multiple cali-
+brated views. We show that it is possible and tractable to
+extend the pictorial structures framework, popular for 2D
+pose estimation, to 3D. We discuss how to use this frame-
+work to impose view, skeleton, joint angle and intersection
+constraints in 3D. The 3D pictorial structures are evaluated
+on multiple view data from a professional football game.
+The evaluation is focused on computational tractability, but
+we also demonstrate how a simple 2D part detector can be
+plugged into the framework.
+
+1. Introduction
+
+Human pose estimation is an important problem in com-
+It comes in many different avors de-
+
+puter vision [11].
+pending on the nal goal and the assumptions made:
+
+ Estimate pose in 2D or 3D.
+ Estimate pose from a single time frame or a sequence.
+ Estimate pose from a single camera view or multiple.
+ Impose a weak or strong prior on the pose.
+
+In this paper we focus on human pose estimation in 3D, at
+a single time frame, using multiple views, imposing a weak
+pose prior. We explore how pictorial structures can be used
+to solve this problem.
+
+From a wider perspective, pictorial structures are inter-
+esting since they might provide a unifying framework for
+general pose estimation and object detection in both 2D and
+3D. They are also interesting from a practical point of view,
+due to their efciency. Pictorial structures simplify the in-
+ference over the high-dimensional space of human poses,
+by modeling the dependencies between body parts as a tree
+structure, as opposed to a general graph.
+
+Pictorial structures in 2D typically discretize the search
+space. Using dynamic programming over the tree graph
+a global optimum of a cost function is computed. This is
+
+Figure 1. We discretize the space of human 3D poses and nd the
+pose that best ts the images from a set of calibrated cameras,
+using dynamic programming.
+
+the state-of-the-art for single view human 2D pose estima-
+tion [9, 8, 16, 1]. The pictorial structures framework also
+works well for general 2D object detection. The deformable
+part model [7], which ts this framework, provides state-of-
+the-art performance for this problem. Recently this type of
+model has also been extended to 3D pose estimation of gen-
+eral objects [12], where in this case pose corresponds to the
+single overall rotation of the object relative to the camera.
+
+However, pictorial structures have not been used as much
+for 3D pose estimation of humans, or articulated objects in
+general. Bergtholdt et al. [2] do multiple view 3D pose es-
+timation, by rst inferring the 2D pose in each view. They
+couple the inference over the different views by enforcing
+soft epipolar constraints.
+In this way 3D information is
+taken into account although the search is done in 2D. A dis-
+advantage with this approach is that the coupling of views
+cannot be implemented in a tree graph. By using a general
+graph the inference of a global optimum is not tractable.
+
+Sigal et al. [15] on the other hand perform the search in
+3D. They argue that while efcient 2D pose estimation re-
+lies on a discretization, this is not practical in 3D. Therefore
+they use a stochastic algorithm to perform inference over a
+continuous space. This has two disadvantages compared to
+the discretized pictorial structures, commonly used in 2D.
+The stochastic algorithm is more complicated and it cannot
+give the same guarantee of global optimality as dynamic
+programming over a discrete space.
+
+1063-6919/13 $26.00  2013 IEEE
+1063-6919/13 $26.00  2013 IEEE
+1063-6919/13 $26.00  2013 IEEE
+DOI 10.1109/CVPR.2013.464
+DOI 10.1109/CVPR.2013.464
+DOI 10.1109/CVPR.2013.464
+
+3616
+3616
+3618
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+Figure 2. The Bayesian network of our model. The body parts are
+in topological order: Pelvis, Torso, Left Upper Leg, Right Upper
+Leg, Left Upper Arm, Right Upper Arm, Left Lower Leg, Right
+Lower Leg, Left Lower Arm, Right Lower Arm. The square nodes
+represent measured variables.
+
+Discretizing the space of 3D poses is difcult for many
+reasons. 2D rotations are simply described by a single an-
+gle, which can be used to create a grid of evenly spread ro-
+tations, such that two discrete rotations can be composed to
+another discrete rotation. The space of 3D rotations is more
+complicated and has no gold-standard parametrization. It
+is not obvious how to create a discrete set of 3D rotations
+that are evenly spread and can be easily composed. Also, in
+2D the general distance transform is used to give efcient
+inference [8]. It is not clear how to generalize this to 3D
+rotations. Furthermore, the space of translations and rota-
+tions in 2D together form a 3D space, whereas the space of
+translations and rotations in 3D together form a 6D space.
+A discretization of 3D poses would therefore require con-
+siderably more points. It is unclear whether dynamic pro-
+gramming is tractable over this larger space. The goal of
+this paper is to address these issues. We aim to show that
+discrete pictorial structures in 3D are practical and tractable.
+Our model is described in section 2. We rst describe the
+general framework, which is more or less the same in 2D
+and 3D, and then describe the aspects unique to 3D. In sec-
+tion 2.1 we discuss weak pose priors leading to tractable in-
+ference. These impose skeleton and joint angle constraints.
+In section 2.2 we discuss how to create a discrete search grid
+over 3D poses. The problem of double-counting, typical for
+tree-based models, is discussed in section 2.3. In the exper-
+iments section 3 we evaluate our model on multiple view
+data from a professional football game. First the tractability
+is evaluated and then we implement and evaluate a simple
+HOG-based part detector.
+
+2. Model
+
+In this section we initially present a general overview of
+our model and framework that is consistent with pictorial
+structures in 2D. The details specic to a 3D implementa-
+tion are then discussed.
+
+The human body is modeled as a collection of N body
+parts. The state Xn = (Tn, Rn) of each part n is dened by
+
+its global translation Tn and global rotation Rn in 3D. Each
+is considered as a discrete random variable. Outcomes of
+these random variables are denoted by xn = (tn, rn) and
+assumed to be elements of the discrete set X = T  R.
+In section 2.2 we discuss how the space of translations
+and rotations in 3D are discretized to give T  R3 and
+R  SO(3). The state of all parts is represented by
+X = (X1, . . . , XN ). We assume the parts are connected
+in a tree graph and the state of part n only depends on the
+state of its parent pa(n):
+
+PXn|X (xn | x) = PXn|Xpa(n) (xn | xpa(n))
+The joint distribution of all parts then factorizes as:
+PXn|Xpa(n) (xn | xpa(n))
+
+PX (x) =
+
+(cid:2)
+
+(1)
+
+(2)
+
+n
+
+n, . . . , I C
+
+Our goal is to estimate the state of the parts from image
+measurements. Let In = (I 1
+n ) be a random vari-
+able representing the image evidence from C views of part
+n. We assume the evidence from different views are inde-
+pendent and therefore the likelihood of part n in state xn
+generating the image evidence in can be written in terms of
+the likelihood functions for each view:
+
+PIn|Xn (in | xn) =
+
+PI c
+
+n|Xn (ic
+
+n | xn)
+
+(3)
+
+(cid:2)
+
+c
+
+(cid:2)
+
+This likelihood provides an image matching score or a
+goodness-of-t to all camera views for a part given its state,
+thereby imposing view constraints. If I = (I1, . . . , IN ) is
+the image evidence of all parts and we assume In is con-
+ditionally independent of all I \ In given Xn, the full joint
+distribution over all the random variables factorizes as:
+
+PX,I (x, i) =
+
+PIn|Xn (in | xn) PXn|Xpa(n) (xn | xpa(n))
+(4)
+The Bayesian network in gure 2 displays the assumed de-
+pendency structure of the variables in our model. We want
+to nd the most probable state x of the parts given mea-
+surements of their images i. This corresponds to solving
+the discrete optimization problem:
+
+n
+
+x
+
+= arg max
+
+x
+
+PX|I (x | i) = arg max
+
+x
+
+PX,I (x, i)
+
+(5)
+
+Since the objective function is factorized over a tree graph,
+the global maximum can be found using the max-product
+algorithm [3]. See algorithm 1 for its application to our
+problem. We assume the parts are ordered topologically,
+i.e. the index of a child is always greater than the index of
+its parent and we let the root have index 1. The costly part of
+the algorithm is the optimization problem in the innermost
+loop:
+
+(cid:3)
+ln PXn|Xpa(n) (xn | xp) + mn(xn)
+
+(cid:4)
+
+(6)
+
+max
+xn
+
+3617
+3617
+3619
+
+Algorithm 1 Max-product for our model
+mn(xn) := ln PIn|Xn (in | xn) n
+for n := N to 2
+p := pa(n)
+for xp  X
+m := max
+
+(cid:2)
+ln PXn|Xp (xn | xp) + mn(xn)
+
+xn
+
+mp(xp) := mp(xp) + m
+
+The total pose prior thus factorizes as:
+
+PXn|Xpa(n) ((tn, rn) | (tp, rp)) =
+
+PTn (tn  tp  rp dn) PRn (rT
+
+p rn)
+
+(12)
+
+(cid:3)
+
+where PTn is a prior over the local translations and PRn
+is a prior over the local rotations.
+
+m1(x1)
+
+end
+
+x1
+
+end
+x
+1 := argmax
+for n := 2 to N
+p := pa(n)
+x
+n := argmax
+end
+
+xn
+
+(cid:2)
+ln PXn|Xp (xn | x
+
+p) + mn(xn)
+
+(cid:3)
+
+Translation Prior We propose three alternatives for the
+translation prior. Each alternative provides potential oppor-
+tunities for speeding up the general max-product algorithm
+1. The simplest corresponds to modeling the skeleton as a
+chain of limbs of xed length and is expressed with:
+
+(cid:5)
+
+PTn (tn) =
+
+1
+0
+
+if tn = (0, 0, 0)T
+otherwise
+
+(13)
+
+for all xp  X. The time complexity of this is in gen-
+eral O(|X|2) = O(|T|2|R|2). We consider N to be
+constant. In section 2.1 we show how to reduce the com-
+plexity to O(|T||R|) and O(|T||R|2), by choosing a
+pose prior PXn|Xpa(n) which exploits the fact that we are
+modeling a 3D human skeleton.
+2.1. Skeleton Model
+
+As we model the human as a kinematic tree, the state
+Xn = (Tn, Rn) of a child depends only on that of its par-
+ent. The global translation Tn and rotation Rn of each part
+can then be dened recursively in terms of local translations
+Tn and local rotations Rn of the part and the global
+translation and rotation of its parent:
+
+Rn = Rpa(n)Rn
+Tn = Tpa(n) + Rpa(n)dn + Tn
+
+(7)
+(8)
+where dn is a constant vector offset of part n from its parent.
+We assume the global translation and rotation of the root is
+uniformly distributed and view the conditional probability
+PXn|Xpa(n) as a prior on the pose of part n given the pose
+of its parent. If all the local translations and rotations are
+assumed to be independent of one another, then Tn and Rn
+are independent given the parent state:
+
+PXn|Xpa(n) = PTn|Xpa(n)
+
+PRn|Xpa(n)
+
+(9)
+
+From equation (7) we see that the rotation of a child is inde-
+pendent of the translation of its parent and Rn is determin-
+istically dened by Rpa(n) and Rn. Therefore we have:
+
+PRn|Xpa(n) (rn | (tp, rp)) = PRn|Rpa(n) (rn | rp)
+
+= PRn (rT
+
+p rn)
+
+(10)
+
+as Rn = RT
+pa(n)Rn. Similarly, the translation prior, by
+exploiting equation (8), can be expressed as:
+PTn|Xpa(n) (tn | (tp, rp)) = PTn (tn  tp  rp dn) (11)
+
+One can also allow each limb some small degree of exibil-
+ity in its length by dening a set Mn of possible deforma-
+tions such that:
+
+PTn (tn) 
+
+if tn  Mn
+otherwise
+
+(14)
+
+(cid:5)
+
+1
+0
+
+Another possibility is to use a loose chain model as in stan-
+dard 2D pictorial structures:
+
+PTn (tn)  N (tn | (0, 0, 0)
+
+T , 2
+
+n I3)
+
+(15)
+
+The local translations are then described by a discretized
+normal distribution with zero mean and isotropic covari-
+ance. With this prior the inference can be made efcient
+using the distance transform [8].
+
+In this work we only explore the xed length constraint
+and while it is somewhat restrictive, it is not an unreason-
+able assumption to make in 3D. This is not the case in 2D
+where limbs in the image can go through extreme foreshort-
+ening due to projection and it is therefore a necessity to al-
+low the length of limbs to vary.
+
+Rotation Prior The distribution PRn describes the pos-
+sible rotations of the joint connecting two parts. In this pa-
+per we consider in detail two possibilities. The rst is sim-
+ply a uniform distribution:
+
+PRn (rn)  1
+
+(16)
+
+The second alternative we examine is one which enforces
+hard limits on joint angles:
+PRn (rn) 
+
+(cid:5)
+
+(17)
+
+if rn  Qn
+otherwise
+
+1
+0
+
+This type of prior can be expressed conveniently for hu-
+mans as hard constraints in the Twist-swing parametrization
+
+3618
+3618
+3620
+
+Algorithm 2 Max-product imposing view and skeleton con-
+straints
+mn(xn) := ln PIn|Xn (in | xn) n
+for n := N to 2
+for tn  T
+
+m(tn) := max
+rn
+
+mn((tn, rn))
+
+end
+p := pa(n)
+for tp  T
+
+for rp  R
+
+tn := tp + rpdn
+mp((tp, rp)) := mp((tp, rp)) + m(tn)
+
+m1(x1)
+
+end
+
+end
+
+x1
+
+end
+x
+1 := argmax
+for n := 2 to N
+p := pa(n)
+t
+p + r
+n := t
+r
+n := argmax
+end
+
+rn
+
+pdn
+mn((t
+
+n, rn))
+
+Algorithm 3 Max-product imposing view, skeleton and
+joint angle constraints
+mn(xn) := ln PIn|Xn (in | xn) n
+for n := N to 2
+p := pa(n)
+for tp  T
+
+for rp  R
+
+tn := tp + rpdn
+m := max
+
+rnQn
+
+mn((tn, rprn))
+
+mp((tp, rp)) := mp((tp, rp)) + m
+
+m1(x1)
+
+end
+
+end
+
+x1
+
+end
+x
+1 := argmax
+for n := 2 to N
+p := pa(n)
+t
+n := t
+p + r
+r
+n := argmax
+rnQn
+end
+
+pdn
+
+mn((t
+
+n, r
+
+prn))
+
+of 3D rotations [10]. One could of course learn an arbitrary
+distribution for PRn from training data, however, we dis-
+count this alternative in this work as we want to impose as
+few priors as possible on the expected pose of the subject.
+
+In general,
+
+Tractable Max-Product
+the max-product
+algorithm 1 has a time complexity of O(|X|2) =
+O(|T|2|R|2). However, each of the pose prior we sug-
+gested allows a speed up of the costly innermost loop max-
+imization (6).
+
+The xed length prior is deterministic. Thus when look-
+ing for the optimal state xn = (tn, rn), we know the transla-
+tion tn and only need to search over all rotations rn. Also,
+if there is a uniform prior on rotation, we can ignore the
+constant normalization factor. Using algorithm 2 it is then
+possible to speed up the optimization to O(|T||R|).
+
+If we still assume xed limb lengths but a hard rota-
+tion prior we can use algorithm 3, with time complexity
+O(|T||R|2). This is the worst complexity of any com-
+bination of the suggested translation and rotation priors.
+
+2.2. Discrete Search Grid
+
+Using dynamic programming to search for the optimal
+pose requires a discretization of the state space. We have
+two requirements for this discretization. Firstly, the points
+should be evenly spread. Secondly, if we add translations
+or compose rotations, it should be easy to nd the resulting
+discrete point. It is easy to construct such a discretization
+for the translations T  R3, but not as easy for the rota-
+
+tions R  SO(3).
+
+Translation Discretization We assume the subject
+is
+roughly localized by a bounding rectangle in each image.
+We also assume that the cameras are calibrated. Therefore
+we can compute a bounding cube (g. 1). The discrete set
+of translations T is created as a grid covering this cube
+(g. 3).
+
+Rotation Discretization We use best-candidate sampling
+[13] to generate a discrete set of rotations R that are evenly
+spread. First a large set of candidates are generated by sam-
+pling rotations uniformly. Then only the candidates furthest
+away from each other are kept.
+
+For this process we use the unit quaternion representa-
+tion of rotations [6]. It describes a rotation as a point on the
+hypersphere S3 embedded in R4. It is possible to sample
+uniformly from SO(3) by sampling points on S3 uniformly.
+To do this simply sample a vector in R4 from an isotropic
+and zero mean normal distribution and normalize this vec-
+tor.
+
+After many candidates have been generated we want to
+retain those samples furthest away from each other. This
+requires measuring distances between points in SO(3). We
+use the geodesic distance d(q1, q2) = 2 arccos(|q1  q2|),
+where q1  q2 is the ordinary dot-product of the unit quater-
+nions and not the quaternion product. Finally, we convert
+the rotations from unit quaternions to rotation matrices. The
+discrete set of rotations R now fullls our rst requirement
+of being evenly spread (g. 3).
+
+3619
+3619
+3621
+
+propose a two-step algorithm that prevents a subset of the
+parts from intersecting. First we nd the global optimum of
+the original objective function, which does not take inter-
+sections into account. To deal with the possible intersection
+of e.g. the legs, we then consider the hypotheses:
+
+1. Left leg has been estimated correctly.
+
+2. Right leg has been estimated correctly.
+
+We then evaluate each of these hypotheses in turn by run-
+ning the algorithm a second time. In this second stage we
+x the part which is assumed to be correctly estimated. The
+corresponding mirror part is then prevented to intersect the
+xed part. This can be done by modifying the appearance
+scores PIn|Xn. A part can be xed by setting all states, ex-
+cept the xed one, to have a zero probability. Similarly, we
+can prevent a part from intersecting its xed mirror part by
+zeroing out all states where this happen. To allow simple
+and fast intersection tests we model the parts as capsules,
+i.e. cylinders with spherical ends.
+
+We then nd the global optimum to this modied cost
+function using the max-product algorithm over the same
+tree graph. This gives a new pose whose parts do not inter-
+sect and its associated score. We then choose the hypothesis
+with the highest score (g. 5).
+3. Experiments
+
+To test our algorithm in a realistic scenario, we recorded
+a sequence from a professional football game using three
+cameras, each having a resolution of 1920  1080 pixels
+and a frame-rate of 25Hz. The cameramen followed the
+same player as he moved around the pitch. We annotated
+the 2D pose in each view for 214 consecutive frames. Us-
+ing these 2D measurements the cameras were synchronized
+and calibrated and the pose was reconstructed in 3D, using
+afne factorization [4]. We use these 2D measurements and
+3D reconstruction as the ground truth to evaluate our algo-
+rithm. Our primary questions are:
+
+ Are pictorial structures in 3D a practical solution?
+ What is the necessary level of discretization needed to
+
+represent human poses in 3D?
+
+ Is this discretization level computationally tractable?
+To answer these questions we rst investigate what levels of
+discretizations are tractable in terms of memory consump-
+tion. We then consider the computation time for these dis-
+cretizations. Finally, we evaluate if these discretizations can
+represent poses with the desired accuracy. These experi-
+ments are discussed in 3.1.
+
+Our next set of experiments focus on applying the algo-
+rithm to measurements extracted automatically from each
+view, using 2D part detectors. These experiments are dis-
+cussed in 3.2.
+
+Figure 3. The discrete set of translations T is generated as a grid
+covering a bounding cube. To the left we show an example with
+|T| = 33. The discrete set of rotations R is generated by sam-
+pling unit quaternions, i.e. points on a hypersphere. In the middle
+we show |R| = 103 samples from a uniform distribution and to
+the right we show the same number of best-candidate samples.
+
+Ideally, we would like the composition of two rotations
+in R to be also in R. This will, in general, not be the case.
+We would then like to use the closest grid point. How can
+we know which grid point that is? A simple solution is to
+precompute a table with this information. If we have |R|
+rotation states we precompute a |R|  |R| table where
+the element with indices i and j is the index to the rotation
+in R that is closest to the composition of the rotations with
+indices i and j. This matrix can potentially be precomputed
+in O(|R|3) time, by comparing the distances to all grid
+points. In section 3 we explore the tractable number of grid
+points.
+2.3. Avoiding Self-Intersections
+
+Using a tree graph and the max-product algorithm to nd
+the solution, is a double-edged sword. On the one hand,
+it allows us to nd the global optimum in a tractable way.
+But on the other hand, assuming the dependencies between
+the variables in the model form a tree has its limitations. A
+typical problem is the double counting of image evidence. If
+some parts have a similar appearance, typically e.g. the left
+and right arms and legs, the optimal score often has them
+placed at the same position.
+
+2D Pose Estimation This problem is especially prevalent
+in 2D where there is an inherent ambiguity, since two parts
+may very well project to the same image area even if they
+do not occupy the same volume in 3D. To reason in this case
+one needs to recognize whether the two parts really occlude
+each other or not. Researchers have addressed this problem,
+but frequently it involves dropping the tree assumption and
+using a global objective function which couples all parts
+[2, 14, 1]. The optimization then becomes difcult and the
+solution found may not be the global optimum.
+
+3D Pose Estimation In 3D we do not have the same ambi-
+guity as in 2D. Whereas the parts should be allowed to inter-
+sect in 2D, they should never be allowed to intersect in 3D.
+However, preventing all parts from intersecting each other
+would still require a full graph instead of a tree. Instead, we
+
+3620
+3620
+3622
+
+| R |
+
+43
+
+83
+
+163
+
+| T |
+163
+670 MB
+323
+5.4 GB
+643
+43 GB
+Table 1. Memory consumption for different discretizations.
+
+84 MB
+670 MB
+5.4 GB
+
+10 MB
+84 MB
+670 MB
+
+View & Skeleton
+
+Constraints
+43
+
+83 163
+
+| R |
+
+View, Skeleton &
+
+Joint Angle Constraints
+163
+
+43
+
+83
+
+0.021 s 0.14 s 1.0 s
+1.0 s 8.4 s
+0.14 s
+1.1 s
+8.7 s
+
+2.4 s 5.5 min
+0.041 s
+0.42 s
+23 s
+69 min
+5.1 s 4.9 min
+
+| T |
+163
+323
+643
+
+Table 2. Computation time for different discretizations.
+
+3.1. Tractability
+
+A key factor that affects the tractability of all the con-
+sidered max-product algorithms (1, 2, 3) is the memory
+used to store all scores/messages, i.e.
+It
+has N  |T|  |R| elements.
+In our implementation
+N = 10 and 4 bytes are used for each element.
+In table
+1 we list the memory requirements for this array for dif-
+ferent translation T and rotation R discretizations. All
+discretizations listed in the table, except the bottom right
+corner, t into the 16 GB RAM of our test system.
+
+the m-array.
+
+We next look at the computation time for running al-
+gorithm 2 and 3 for different discretizations. The algo-
+rithms were implemented in C++ using OpenMP to par-
+allelize the for-loops over T . The computations were
+run on an Intel Core2 Quad processor with four 2.8 GHz
+cores. The result is summarized in table 2. Algorithm 2 im-
+poses view and skeleton constraints. Its time complexity of
+O(|T||R|) is conrmed by the table. Algorithm 3 addi-
+tionally imposes joint angle constraints. Its time complexity
+of O(|T||R|2) is approximately matched by the table.
+
+Finally, we explore what level of discretization that is
+necessary to obtain an acceptable estimate of the 3D pose.
+To perform this evaluation we use synthetically generated
+n|Xn. This avoids conating inaccuracies in
+scores for PI c
+the measurement process with the coarseness of the grid
+discretization, when analyzing the cause of errors in the -
+nal 3D pose estimate. The synthetic scores are computed
+from 2D pose annotations. Each part is modeled as a line
+segment. Let the annotated start and end points of part n in
+view c be denoted by s(ic
+n). If the part is in state
+xn the projected start and end points are denoted sc
+n(xn)
+and ec
+n(xn). Our synthetic appearance score is then the dif-
+ference between the projected and annotated end points:
+
+n) and e(ic
+
+ln PI c
+
+n|Xn (ic
+
+n | xn) =  (cid:5)sc
+ (cid:5)ec
+
+n(xn)  s(ic
+n(xn)  e(ic
+
+n)(cid:5)2
+n)(cid:5)2
+
++
+
+(18)
+
+3621
+3621
+3623
+
+|R|
+
+|T|
+
+43
+
+83
+
+163
+
+163
+
+323
+
+643
+
+Figure 4. Evaluation of the necessary detail required for the dis-
+cretization grid. Synthetic appearance scores are used. The esti-
+mated 3D pose (red) is the pose closest to the ground truth pose
+(blue), that is possible to represent with the given discretization.
+
+Figure 4 shows the result of running algorithm 2 with
+these synthetic scores, for different levels of discretizations.
+We conclude that having |T|  323 and |R|  83 gives
+enough detail. Since this is tractable both in terms of mem-
+ory and speed we conclude that algorithm 2 is practical and
+tractable.
+We have observed that algorithm 3 seems to require a
+ner discretization, |R|  163. This is on the border of
+being tractable in terms of speed of our current implemen-
+tation. We believe this extra level of detail is needed since
+the hard joint angle constraints remove some of the local
+rotations of each part. More specically, it removes some
+of the rotations that approximately rotate the part around its
+own axis, but result in slightly different end positions. This
+loss of precision needs to be compensated by having more
+global rotations.
+3.2. Automatic Part Detection
+
+These experiments test automatic pose estimation using
+algorithm 2. To do this we implemented simple 2D part de-
+tectors based on the HOG-descriptor [5]. We model each
+part as a cylinder and approximate its projection to an im-
+age as a rectangle. Each 3D rotation then corresponds to a
+2D rotation and change of aspect ratio of this rectangle. To
+be invariant to this effect, we warp the rectangle to a canon-
+
+View & Skeleton
+
+Constraints
+
+Parts
+Pelvis
+Torso
+Upper Arms
+Lower Arms
+Upper Legs
+Lower Legs
+All Parts
+
+C=1
+97 57
+87 40
+14
+2
+0
+6
+8
+62
+33
+5
+41 13
+
+C=3
+
+C=2
+97 35 100 50
+90 48 100 65
+8
+55
+55 15
+35 18
+30
+6
+90 45
+87 26
+70 57
+68 35
+67 23
+70 39
+
+View, Skeleton &
+
+Intersection Constraints
+C=1
+C=3
+97 57
+87 38
+14
+2
+0
+6
+9
+63
+41
+7
+43 13
+
+C=2
+97 35 100 55
+90 48 100 55
+53
+60 20
+28
+35 15
+88 19 100 48
+90 60
+82 38
+69 23
+77 40
+
+8
+7
+
+Table 3. A quantitative summary of the results of our pose esti-
+mation to real images from 20 different frames. PCP scores in %
+with  = 0.5 and  = 0.2 (in blue) are used to measure perfor-
+mance of pose estimation using 1, 2 or 3 cameras. We rst only
+impose view and skeleton constraints. We then add intersection
+constraints for the lower legs.
+
+ical square. We let the HOG of this square represent the
+appearance of the part.
+
+Using 2D pose annotations we train a binary logistic re-
+gression classier [3], to allow a probabilistic interpretation,
+for each part. We use 100 frames from the 3 camera views
+for training. When testing on an image we evaluate the de-
+tector for each 2D position and each 2D rotation and aspect
+ratio of the rectangle.
+
+After this has been done for all views we use these re-
+sponse scores in look-up tables when evaluating the score
+for each 3D position and 3D rotation. Each 3D position and
+rotation of the part corresponds to a 2D position, rotation
+and aspect ratio of the rectangle in each view. The scores
+from the different views are aggregated using equation 3.
+
+The quantitative results in this section are reported in
+terms of PCP scores: percentage of correctly estimated
+parts. A part is declared correctly estimated if:
+
+(cid:5)sn  sn(cid:5) + (cid:5)en  en(cid:5)
+
+2
+
+ (cid:5)sn  en(cid:5)
+
+(19)
+
+where sn and en represent the ground truth 3D coordinates
+of the start and end point of part n and sn and en the al-
+gorithms estimate. We report scores for  = 0.2 and
+ = 0.5 in table 3. The PCP score is more informative
+than one based on the Euclidean distance, given the the dif-
+culty of the data set and the precision of our simple 2D
+part detectors. We test with and without the 3D intersection
+constraints and using 1, 2 or 3 camera views.
+
+Table 3 and gure 5 show that our simple 2D part de-
+tectors are not very accurate. However, designing accurate
+2D part detectors has not been our focus. The frame-work
+supports any such detector. More importantly, the table and
+gure show that given a 2D part detector, the 3D pictorial
+structures frame-work can improve the accuracy of the es-
+timation by imposing view, skeleton and intersection con-
+straints in 3D.
+
+3622
+3622
+3624
+
+4. Conclusions and Future Work
+
+We have described and implemented a frame-work for
+3D pictorial structures that can be used for multiple view
+articulated pose estimation. Thanks to the discretization of
+the search space a globally optimal pose can be computed.
+We implemented two algorithms. The rst algorithm (2)
+imposes view and skeleton constraints. The second algo-
+rithm (3) also imposes joint angle constraints. We have
+shown that the rst algorithm is tractable, whereas our im-
+plementation of the second algorithm is on the border of be-
+ing tractable in terms of speed, on our test system. We also
+demonstrated how the problem of intersecting parts, com-
+mon for tree-based models, can be dealt with more easily in
+3D than 2D.
+
+We see several interesting directions for future research.
+Finding an efcient way of computing max-convolutions
+over discrete subsets of SO(3) would speed up the second
+algorithm, imposing joint angle constraints. A coarse-to-
+ne or branch and bound approach could also help to re-
+duce the search in general. One could also utilize the paral-
+lel nature of the max-product algorithm by exploring GPU
+implementations.
+
+In our implementation we compute the image evidence
+of the individual parts using 2D part detectors that are rather
+basic and not that accurate. Better performance can be ex-
+pected if this frame-work independent component is instead
+based on a state-of-the-art 2D pose estimator. Now that the
+tractability of the frame-work has been shown, we plan to
+rene this appearance component and thouroughly compare
+the performance with alternative 3D pose estimators. An-
+other interesting direction for future research is how to au-
+tomatically calibrate the cameras.
+
+Acknowledgement This work was supported by the
+FP7 project Free-viewpoint Immersive Networked Expe-
+rience. The authors would like to thank AIK Football
+Club and Hego Tracab for help with collecting the football
+footage.
+
+References
+[1] M. Andriluka, S. Roth, and B. Schiele. Discriminative ap-
+pearance models for pictorial structures. International Jour-
+nal of Computer Vision, 99(3):259280, 2012.
+
+[2] M. Bergtholdt, J. Kappes, S. Schmidt, and C. Schnrr. A
+study of parts-based object class detection using complete
+graphs. International Journal of Computer Vision, 87(1):93
+117, 2010.
+
+[3] C. M. Bishop. Pattern Recognition and Machine Learning.
+
+Springer-Verlag, 2006.
+
+[4] M. Burenius, J. Sullivan, and S. Carlsson. Motion capture
+In 4DMOD - ICCV
+
+from dynamic orthographic cameras.
+Workshop, 2011.
+
+Frame 1
+View &
+Skeleton
+
+View
+
+Constraints
+
+Constraints
+
+View, Skeleton
+& Intersection
+Constraints
+
+Frame 2
+View &
+Skeleton
+
+View
+
+Constraints
+
+Constraints
+
+View, Skeleton
+& Intersection
+Constraints
+
+Frame 3
+View &
+Skeleton
+
+View
+
+Constraints
+
+Constraints
+
+View, Skeleton
+& Intersection
+Constraints
+
+Figure 5. Multiple view 3D pose estimation imposing different types of constraints. In the rst column only view constraints are imposed.
+The second column adds skeleton constraints. The third column also adds intersection constraints. The rows show the different camera
+views and the bottom row shows the reconstruction from a new view. The reconstruction is drawn in red and the ground truth in blue.
+
+[5] N. Dalal and B. Triggs. Histograms of oriented gradients
+for human detection. In Proceedings of the Conference on
+Computer Vision and Pattern Recognition, 2005.
+
+[6] E. B. Dam, M. Koch, and M. Lillholm. Quaternions, inter-
+
+polation and animation. Technical report, 1998.
+
+[7] P. Felzenszwalb, R. Girshick, D. McAllester, and D. Ra-
+manan. Object detection with discriminatively trained part-
+based models. Pattern Analysis and Machine Intelligence,
+IEEE Transactions on, 32(9):1627 1645, sept. 2010.
+
+[8] P. F. Felzenszwalb and D. P. Huttenlocher. Pictorial struc-
+tures for object recognition. International Journal of Com-
+puter Vision, 61(1):5579, Jan. 2005.
+
+[9] M. Fischler and R. Elschlager. The representation and
+matching of pictorial structures. Computers, IEEE Trans-
+actions on, C-22(1):67  92, jan. 1973.
+
+[10] F. S. Grassia. Practical parameterization of rotations using
+the exponential map. Journal of Graphics Tools, 3(3):2948,
+1998.
+
+[11] T. Moeslund, A. Hilton, V. Kruger, and L. Sigal. Visual Anal-
+
+ysis of Humans: Looking at People. Springer, 2011.
+
+[12] B. Pepik, P. Gehler, M. Stark, and B. Schiele. 3d2pm - 3d
+In Proceedings of the European
+
+deformable part models.
+Conference on Computer Vision, 2012.
+
+[13] M. Pharr and G. Humphreys. Physically based rendering:
+
+From theory to implementation. Morgan Kaufmann, 2010.
+
+[14] L. Sigal and M. Black. Measure locally, reason globally:
+Occlusion-sensitive articulated pose estimation. In Proceed-
+ings of the Conference on Computer Vision and Pattern
+Recognition, 2006.
+
+[15] L. Sigal, M. Isard, H. Haussecker, and M. Black. Loose-
+limbed people: Estimating 3d human pose and motion using
+non-parametric belief propagation. International Journal of
+Computer Vision, 98(1):1548, 2012.
+
+[16] Y. Yang and D. Ramanan. Articulated pose estimation with
+exible mixtures-of-parts. In Proceedings of the Conference
+on Computer Vision and Pattern Recognition, 2011.
+
+3623
+3623
+3625
+
+

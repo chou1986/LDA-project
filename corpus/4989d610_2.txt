@@ -1,0 +1,1562 @@
+2013 IEEE Conference on Computer Vision and Pattern Recognition
+2013 IEEE Conference on Computer Vision and Pattern Recognition
+2013 IEEE Conference on Computer Vision and Pattern Recognition
+
+Learning Locally-Adaptive Decision Functions for Person Verication
+
+Zhen Li 
+UIUC
+
+zhenli3@uiuc.edu
+
+Thomas S. Huang 
+
+UIUC
+
+Shiyu Chang 
+
+UIUC
+
+Feng Liang
+
+UIUC
+
+chang87@uiuc.edu
+
+liangf@uiuc.edu
+
+Liangliang Cao
+IBM Research
+
+John R. Smith
+IBM Research
+
+huang@ifp.uiuc.edu
+
+liangliang.cao@us.ibm.com
+
+jsmith@us.ibm.com
+
+Abstract
+
+This paper considers the person verication problem in
+modern surveillance and video retrieval systems. The prob-
+lem is to identify whether a pair of face or human body im-
+ages is about the same person, even if the person is not
+seen before. Traditional methods usually look for a dis-
+tance (or similarity) measure between images (e.g., by met-
+ric learning algorithms), and make decisions based on a
+xed threshold. We show that this is nevertheless insuf-
+cient and sub-optimal for the verication problem. This pa-
+per proposes to learn a decision function for verication
+that can be viewed as a joint model of a distance metric and
+a locally adaptive thresholding rule. We further formulate
+the inference on our decision function as a second-order
+large-margin regularization problem, and provide an ef-
+cient algorithm in its dual from. We evaluate our algorithm
+on both human body verication and face verication prob-
+lems. Our method outperforms not only the classical metric
+learning algorithm including LMNN and ITML, but also the
+state-of-the-art in the computer vision community.
+
+1. Introduction
+
+Person verication, Are you the person you claim to
+be, is an important problem with many applications. Mod-
+ern image retrieval systems often want to verify whether
+photos contain the same person or the same object. Person
+verication also gets more and more important for social
+network websites, where it is highly preferred to correctly
+assign personal photos to users. More importantly, the huge
+amount of surveillance cameras - there are more than 30
+million surveillance cameras in U. S. recording about 4 bil-
+lion hours of videos per week, calls for reliable systems
+which are able to identify the same person across differ-
+
+
+
+This research was supported in part by a research grant from Chongqing Institute
+
+of Green and Inteligent Technology, Chinese Academy of Sciences.
+
+1063-6919/13 $26.00  2013 IEEE
+1063-6919/13 $26.00  2013 IEEE
+1063-6919/13 $26.00  2013 IEEE
+DOI 10.1109/CVPR.2013.463
+DOI 10.1109/CVPR.2013.463
+DOI 10.1109/CVPR.2013.463
+
+3608
+3608
+3610
+
+Figure 1. Example images of George W. Bush showing huge intra-
+person variations.
+
+ent videos, a critical task that cannot merely rely on human
+labors. So developing an automatic verication system is of
+great interest in practice.
+
+There are two main visual clues for person verication:
+face images and human body gures. Although our human
+vision system has the amazing ability of performing veri-
+cation - we can judge whether two faces are about the same
+person without even seeing that person before, it is difcult
+to build a computer-based automatic system for this pur-
+pose. For a given query image, the person in the image may
+not appear in the database or has only one or few images in
+the database. Furthermore, the query image and the other
+images in the database are rarely collected in exactly the
+same environment, which leads to huge intra-person varia-
+tions including viewpoint, lighting condition, image quality,
+resolution, etc. Figure 1 provides some examples illustrat-
+ing the difculties with the person verication problem.
+
+We can formally describe the verication problem as fol-
+lows: for a pair of sample images represented by x, y  R
+d,
+respectively, each of which corresponds to category label
+c(x) and c(y), we aim to decide whether they are from the
+same category, i.e., c(x) = c(y), nor not. Given a set of
+training samples, our goal is to learn a decision function
+
+f (x, y) where
+
+(cid:2)
+
+f (x, y)
+
+> 0,
+< 0,
+
+if c(x) = c(y)
+otherwise.
+
+(1)
+
+Note that to infer f we need not to know the respective value
+of c(x) or c(y), which means it has the generalization ability
+to verify samples from unseen categories.
+
+Learning the decision function f for verication is fun-
+damentally different from learning a classier for traditional
+machine learning problems. Traditional machine learning
+algorithms consider individual samples instead of a pair
+of samples. This paired setup for verication naturally
+imposes some symmetry constraint for the decision func-
+tion, i.e., f (x, y) = f (y, x), a constraint seldom seen in
+ordinary learning algorithms. Most multi-class classiers,
+which model the category-specic probability distributions
+(for generative models) or learn the decision boundaries (for
+discriminant models), are not appropriate for verication.
+For verication, of interest is to determine whether a pair
+of samples is from the same category or not, but not to an-
+swer which category/categories they belong to. The ability
+of dealing with unseen categories is the key for person veri-
+cation, since most testing samples are from unseen persons
+which are not in the training pool.
+
+Recently, metric learning (ML) approaches [26] have
+been applied to person verication [12, 19, 6, 2]. The key
+idea behind ML is to learn a parametric distance metric be-
+tween two images x and y, which in most cases take the
+form of (x  y)tM (x  y) where M is a semi-positive
+denite matrix Then one can decide whether x and y are
+from the same class based on some thresholding rule, i.e.,
+(x  y)tM (x  y)  d.
+
+Although ML is very important for many supervised
+learning applications (e.g. classication) that often deal
+with complex and high-dimensional features, it has a few
+limitations particularly in the verication setting. The ob-
+jective of many ML algorithms is to ensure that samples
+from the same class be closer to each other than those from
+different classes. In other words, it enforces a relative rank-
+ing constraint between intra-class and inter-class pairs (in
+terms of pairwise distances), and this is why ML is often
+tied with the nearest neighbor classier for a classication
+task. However, for verication where many test samples
+might come from unseen classes, nearest neighbor classi-
+ers are not applicable. Then ML only leads to an absolute
+decision rule with a constant threshold d:
+
+fM L(x, y) = d  (x  y)tM (x  y).
+
+(2)
+
+This intrinsic mismatch (classication vs. verication, rel-
+ative ranking vs. absolute discrimination) leaves ML ap-
+proaches not optimal for verication problems.
+
+In Section 2, after showing the sub-optimality of (2), we
+propose to adjust the decision rule locally, i.e., consider
+
+3609
+3609
+3611
+
+f (x, y) = d(x, y)  (x  y)tM (x  y) where d(x, y) is
+a function of x, y rather than a constant. As a starting point,
+we assume d(x, y) takes a simple quadratic form, which
+leads to our general second-order decision function. In Sec-
+tion 3, we formulate the inference on our second-order deci-
+sion function as a large-margin regularization problem, and
+provide an efcient algorithm based on its dual. Further,
+we can interpret our approach as learning a linear SVM
+in a new feature space which is symmetric with respect to
+(x, y). With this new interpretation, our second-order de-
+cision function can be easily generalized to decision func-
+tions of high-orders by the kernel trick. In Section 4, we
+evaluated our proposed algorithm on three person verica-
+tion tasks. We show that in all cases, our method achieves
+state-of-the-art results in comparison with existing works.
+Finally, we give the conclusion remarks in Section 5.
+2. Bridging Distance Metric and Local Deci-
+
+sion Rules
+Metric learning (related to feature selection, dimension
+reduction, or subspace projection, etc) plays a fundamen-
+tal role in machine learning.
+It is particularly important
+for computer vision applications, where the feature repre-
+sentation of images or videos is usually of complex high-
+dimensional form [28, 22]. In these cases, the Euclidean
+norm associated with the original feature space usually
+does not provide much useful information for the subse-
+quent learning tasks. In most applications we consider here,
+the sample data are sparse in the high-dimensional feature
+space. So we focus on metric learning with respect to a
+global metric, i.e., the matrix M in (2), although learning a
+local metric has attracted an increasing interest in machine
+learning research.
+
+However, metric learning itself is insufcient for veri-
+cation problem, as discussed in Section 1. The problem is
+that after metric learning, we still need to make a decision.
+As to be shown below, a simple constant threshold in (2)
+is sub-optimal, even if the associated metric is correct. A
+decision rule that can adapt to the local structures of data
+[9], is the key to achieve good verication performance. To
+this end, we consider a joint model that bridges a global dis-
+tance metric and a local decision rule, and we further show
+the optimality of our method over ML in the verication
+setting.
+Consider f (x, y) = d(x, y)  (x  y)tM (x  y) where
+d(x, y) acts as a local decision rule for a learned metric
+M. Since the metric itself is quadratic, as a starting point,
+we also assume d(x, y) takes a simple quadratic form. We
+will see later in Section 3 that, this formulation leads to a
+kernelized large-margin learning problem, and thus can be
+easily generalized to decision functions of high-orders by
+the kernel trick [1].
+
+For now, let us focus on the second-order decision rule,
+
+(cid:4)
+
+(cid:3)
+
+i.e., d(x, y) = 1
+
+2 ztQz + wtz + b, where zt = [xt yt]  R
+(cid:6)  R
+2d,
+2d,
+Q =
+and b  R. Due to the symmetry property with respect to x
+and y, we can rewrite d(x, y) as follows:
+
+Qxx Qxy
+Qyx Qyy
+
+2d2d, wt =
+
+ R
+
+x wt
+y
+
+wt
+
+(cid:5)
+
+yt Ay + xt By + ct(x + y) + b
+
+d(x, y) =
+
+=
+
+1
+2
+1
+4
+
+1
+2
+
+xt Ax +
+(x  y)t( A  B)(x  y)
+1
+4
+
+(x + y)t( A + B)(x + y)
+
++
+
++ct(x + y) + b,
+
+(3)
+where A = Qxx = Qyy and B = Qxy = Qyx are both dd
+real symmetric matrices (not necessarily positive semide-
+nite), c = wx = wy is a d-dimensional vector, and b is the
+bias term.
+
+Now we obtain the second-order decision function for
+
+verication:
+
+f (x, y) = d(x, y)  (x  y)tM (x  y)
+
+=
+
+xtAx +
+
+1
+2
++ct(x + y) + b,
+
+1
+2
+
+ytAy + xtBy
+
+(4)
+by letting A  B = A  B  4M and A + B = A + B.
+Again, A and B are real symmetric and need not to be PSD.
+The above decision function has the following desirable
+
+properties:
+
+ Learning globally, acting locally. We bridge a global
+metric M and a local decision rule using a joint model
+(4). Interestingly, the number of parameters is at the
+same order (O(d2)) as that of ML.
+ Fully informed decision making. The local decision
+rule in (3) depends not only on x  y, the difference
+vector usually considered by ML, but also on x + y,
+which contains orthogonal information of (x, y) that
+would otherwise be neglected by x  y alone.
+ Kernelizable to higher order. As we will see in Sec-
+tion 3, the decision function in (4) leads to a kernelized
+large-margin learning problem, and thus can be easily
+generalized to decision functions of higher-orders by
+the kernel trick [1].
+
+We now show the optimality of our decision function
+over ML, by considering a simple case where two categories
+d are linearly separable. We show that in the
+of samples in R
+verication setting, the performance of any given metric is
+inferior to that of our model, in this simple case.
+
+Observation. Given two linearly separable classes, the
+verication error rate by our second-order decision func-
+tion (4) is always lower than that by a learned metric with a
+
+xed threshold (2). More specically, in this particular set-
+ting, our model can always achieve zero verication error
+while ML does not.
+
+y
+
+2
+
+1
+
+0
+
+1
+
+2
+2
+
+joint distributions of (x,y)
+
+c(x)=c(y)
+c(x)!=c(y)
+xy>0.2
+
+1
+
+0
+x
+
+1
+
+2
+
+(a) Joint distribution of (x,y), with zero-error decision function by our
+model: xy  0.2 > 0.
+
+distributions of  = xy
+
+c(x)=c(y)
+c(x)!=c(y)
+
+1
+
+0.8
+
+0.6
+
+0.4
+
+0.2
+
+f
+
+d
+p
+
+0
+4
+
+2
+
+0
+
+ = xy
+
+2
+
+4
+
+(b) Distribution of  = x  y in case of metric learning, with nite
+verication error.
+
+Figure 2. Distributions of same-class pairs (red) vs. different-class
+pairs (blue).
+
+d satises: wtx+b > 0
+Proof. Suppose the two classes in R
+for class 1, and wtx + b < 0 for class 2. In verication, we
+aim to identify if two samples x and y are from the same
+class or different ones.
+
+1. We rst show that our decision function in (4) always
+
+achieves zero verication error.
+x and y are from the same class if and only if (wtx + b)
+and (wty + b) are of the same sign. In other words, we can
+perfectly identify pairs from the same class vs. those from
+different classes, by checking the sign of (wtx + b)(wty +
+b) = xt(wwt)y + bwt(x + y) + b2. This decision function
+is clearly a special case of (4).
+
+2. We then show that the ML approach in (2) does not
+
+always achieve zero verication error.
+Any Mahalanobis distance between x and y can be regarded
+
+3610
+3610
+3612
+
+as the Euclidean distance on the space transformed by L,
+namely, d(x, y) = (xy)tM (xy) = (xy)LtL(xy) =
+(cid:4)x(cid:2)  y(cid:2)(cid:4)2
+2, where M = LtL, x(cid:2) = Lx and y(cid:2) = Ly. In this
+new space, the two classes are still linearly separable, since
+wtx + b = w(cid:2)tx(cid:2) + b and w(cid:2) = wL1 (assuming M is full
+rank). Therefore, in order for ML method in (2), or simply
+|x y| < d, to achieve zero verication error, the following
+condition needs to be satised:
+
+max
+
+c(x)=c(y)
+
+(cid:4)x(cid:2)  y(cid:2)(cid:4)2 < min
+c(x)(cid:3)=c(y)
+
+(cid:4)x(cid:2)  y(cid:2)(cid:4)2.
+
+(5)
+
+Unfortunately,
+
+the above condition does not always
+hold. Consider a counter example in 1-D: class 1 is uni-
+formly distributed in [2, 0.5] and class 2 in [0.5, 2].
+The two classes are indeed separable, but condition (5)
+is not satised since maxc(x)=c(y) (cid:4)x(cid:2)  y(cid:2)(cid:4)2 = 1.5 and
+minc(x)(cid:3)=c(y) (cid:4)x(cid:2)  y(cid:2)(cid:4)2 = 1. In fact, from Figure 2(b) we
+see that ML method (|x  y| < d) inevitably results in -
+nite verication error, while our model is able to perfectly
+separate the two types of pairs on the (x, y) space, shown in
+Figure 2.
+
+A more realistic example that also violates (5) is: face
+images of the same person but from different poses are usu-
+ally more dissimilar than those from different person but of
+the same pose. Figure 3 shows such an example with se-
+lected image pairs of the LFW dataset [16].
+
+3. A Large-Margin Solution with an Efcient
+
+Algorithm
+
+3.1. A large margin formulation
+
+Recall that the objective of a verication problem is to
+d 
+d as inputs, with
+
+learn a symmetric decision function: f (x, y) : R
+R that takes a pair of samples x, y  R
+decision rule:
+
+d  R
+
+(cid:2)
+
+f (x, y)
+
+> 0,
+< 0,
+
+if c(x) = c(y)
+otherwise.
+
+Our goal is to nd the optimal second-order decision func-
+tion f (x, y) in (4) that is parametrized by {A, B, c, b}. This
+naturally leads to a choice of an SVM-like [4] objective
+function, as the resulting large-margin model generalizes
+well to unseen examples.
+
+Specically, assume we are given a dataset of exam-
+ples, and pairwise labels are assigned. A sample pair
+pi = (xi, yi) is labeled as either positive (li = +1), if
+xi and yi are from the same class; or negative (li = 1),
+otherwise. We further denote by P the set of all labeled
+sample pairs. An SVM-like objective function can be for-
+
+(a) Intra-person distances (different poses).
+
+(b) Inter-person distances (same pose).
+
+Figure 3. Comparison of intra-person and inter-person distances
+under a learned metric.
+
+mulated as:
+
+min
+
+s.t.
+
+1
+2
+
+2
+
+(cid:8)
+
++ 
+
+F + (cid:4)c(cid:4)2
+
+F + (cid:4)B(cid:4)2
+
+(cid:9)
+(cid:7)(cid:4)A(cid:4)2
+iP
+lif (xi, yi)  1  i i  P
+i  P.
+(cid:10)
+tr(AtA) is the Frobenius matrix norm,
+
+i  0
+
+i
+
+(6)
+
+Here (cid:4)A(cid:4)F =
+and tr(A) denotes the trace of matrix A.
+Noticing the inner product dened on the matrix space,
+(cid:8)A, B(cid:9) = tr(AtB), we reformulate the decision function
+(4) into:
+
+f (x, y) =
+
+A (xxt + yyt)
+
+B (xyt + yxt)
+
+(cid:7)
+
+tr
+
+1
+2
+(cid:11)
++ct(x + y) + b
+1
+A, xxt + yyt
+2
++(cid:8)c, x + y(cid:9) + b
+= (cid:8), (x, y)(cid:9) + b,
+
+=
+
+(cid:8)
+
+(cid:7)
+
++
+
+1
+2
+
+tr
+
+(cid:8)
+
+(cid:11)
+
+(cid:12)
+
++
+
+1
+2
+
+(cid:12)
+
+B, xyt + yxt
+
+(7)
+
+where   R
+2d2+2 is a vectorized representation of the
+hyper-parameters (excluding b), and (x, y) denes a map-
+
+3611
+3611
+3613
+
+d  R
+
+ping R
+
+d  R
+
+2d2+d:
+
+ =
+
+
+ vec(A)
+
+vec(B)
+
+
+
+
+c
+
+
+ 1
+
+1
+
+2 vec(xxt + yyt)
+2 vec(xyt + yxt)
+
+x + y
+
+(x, y) =
+
+(8)
+
+(9)
+
+
+ ,
+
+where vec() denotes the vectorization of a matrix. Note
+that (x, y) can be viewed as a symmetrization of the orig-
+inal feature space (x, y), that is, any function of (x, y) is
+now a symmetric function of x and y.
+
+Similarly, the objective function can be rewritten as:
+
+1
+2
+
+min
+
+s.t.
+
+(cid:9)
+iP
+i  0
+
+(cid:8), (cid:9) + 
+li((cid:8), i(cid:9) + b)  1  i i  P
+i  P,
+
+i
+
+And the optimal decision function is therefore:
+
+f (x, y) = (cid:8), (x, y)(cid:9) + b
+
+=
+
+i li (cid:8)i, (cid:9) + b.
+
+
+(12)
+
+We notice that either solving the dual problem (11) or ap-
+plying the optimal function (12) involves only the so-called
+kernel function K(i, j) = (cid:8)i, j(cid:9). By substituting (9)
+and the equality vec(A)tvec(B) = (cid:8)A, B(cid:9) = tr(AtB),
+we arrive at:
+
+(cid:9)
+
+i
+
+(cid:7)
+
+(xixt
+(cid:7)
+
+K(i, j) =
+
+1
+4
+
+tr
+
+(10)
+
+=
+
+(cid:8)
+
+i + yiyt
+
+i )(xjxt
+
+j + yjyt
+j)
+
+(cid:8)
+j + yjxt
+j)
+
+i)(xjyt
+
+1
+4
+
++
+
+tr
+
+(xiyt
+
+i + yixt
++(xi + yi)t(xj + yj)
+1
+1
+4
+4
++(xi + yi)t(xj + yj).
+
+ixj + yt
+
+i yj)2 +
+
+(xt
+
+(xt
+
+iyj + yt
+
+i xj)2
+
+(13)
+
+where i is an abbreviation of (xi, yi). This looks identi-
+cal to the standard SVM problem [4]. Thus existing SVM
+solvers could be employed to solve this problem, such
+as stochastic gradient decent [23] that works on the pri-
+mal problem directly, or sequential minimal optimization
+(SMO) [21] that solves the dual problem instead.
+3.2. An efcient dual solver
+
+Though looking straightforward, solving (10) directly is
+infeasible due to the high dimensionality of 2d2 + d. For
+instance, a moderate image feature of 1000 dimensions will
+lead to more than 1 million parameters to estimate. Whats
+more, direct application of existing SVM solvers may re-
+quire forming (xi, yi)s explicitly, which is highly inef-
+cient and prohibitive in memory usage.
+In this section,
+we will show that the original problem can actually be con-
+verted into a kernelized SVM problem that could be solved
+much more efciently.
+(cid:9)
+(cid:9)
+
+We start with the Lagrange dual of (10):
+
+ijlilj (cid:8)i, j(cid:9)
+
+i  1
+2
+
+(cid:9)
+
+(11)
+
+max
+
+1
+2
+
+i,j
+
+i
+
+ili = 0, 0  i  ,
+
+s.t.
+
+i
+
+where i is the Lagrange multiplier corresponding to the i-
+th constraint. If we could have solved the above problem
+with optimal 
+i s, the solution for the primal is then given
+by:
+
+(cid:9)
+
+
+i lii
+
+ =
+b = li  (cid:8), i(cid:9) , i : 
+
+i
+
+i > 0.
+
+Note that the kernel function here is dened on a new space
+of (x, y) that is symmetric with respect to x and y. More
+specically, different from a traditional kernel function that
+is between two individual samples, K(i, j) is dened be-
+tween two pairs of samples.
+
+d: xt
+
+iyj, yt
+
+ixj, xt
+
+i xj, and yt
+
+We now see that,
+
+to evaluate each kernel function
+K(i, j), one only needs to calculate 4 inner products
+i yj, rather than working
+on R
+on the (2d2 + d)-dimensional space instead. In this way
+we reduce the complexity of each kernel evaluation from
+O(d2) to O(d), which is usually the most costly operation
+in solving large-scale dual SVM problems [7]. In addition,
+the memory cost is alleviated accordingly, as explicitly con-
+structing (x, y)s by (9) is no longer necessary. Based on
+(13), existing dual SVM solvers such as SMO algorithm
+[21, 7] can be applied to solve (11) efciently.
+
+Moreover, the fact that only inner products are involved
+in K(i, j) implies the extension to implicit kernel em-
+bedding of original features, namely,
+
+K(i, j) =
+
+1
+4
+
++
+
+(G(xi, xj) + G(yi, yj))2
+1
+4
+
+(G(xi, yj) + G(yi, xj))2
+
++G(xi, xj) + G(xi, yj)
++G(yi, xj) + G(yi, yj),
+
+(14)
+where G(,) is a kernel function of the original feature
+space. Based on this kernel embedding, we can thus ex-
+tend our decision function (4) to higher orders by the kernel
+trick [1]. However, in practice, cubic polynomials or higher
+order functions often work less robustly, so in experiments,
+we will mainly use the second-order decision functions.
+
+3612
+3612
+3614
+
+3.3. Regularizations
+
+In practice, especially when there is only limited amount
+of training data, we might consider further regularizing the
+parameters (A and B in particular). For instance, Huang
+et al. [13] impose various constraints on the learned Ma-
+hanalobis matrix (for metric leanring), including positive
+semi-denity, low rank, sparsity, etc. While all these regu-
+larizations can be applied in addition to the Frobenius norm
+used in (6), we nd in practice that positive/negative semi-
+denity to be particularly useful. Note that here we have
+two matrices A and B that need to be constrained. Both
+metric learning and the toy example in Section 2 indicate
+that we could force A to be positive semi-denite while re-
+quiring B be negative semi-denite. So we are adding two
+constraints to the objective function in (6): A  PSD and
+B  NSD. Gradient projection algorithms can be employed
+to solve the optimization problem, i.e., after each gradient
+descent step, we project the updated A onto the PSD space,
+and B onto the NSD space. Alternatively, we could let
+A = M M t and B = N N t and optimize on M and N
+instead. Though the problem on M and N is no longer con-
+vex, it does not seem to suffer from seveve local minimum
+issues [24].
+
+4. Experiments
+
+We conduct experiments on three different datasets:
+Viewpoint
+Invariant Pedestrian Recognition (VIPeR)
+[11], Context Aware Vision using Image-based Active
+Recognition for Re-Identication (CAVIAR4REID) [3],
+and Labeled Faces in the Wild (LFW) [16].
+The
+rst two datasets focus on person verication from hu-
+man body images, while the latter one on face verica-
+tion.
+In each experiment, we present results by com-
+paring with classic metric learning (ML) algorithms as
+well as other state-of-the-art approaches. We demonstrate
+that our proposed approach signicantly outperforms ex-
+isting works and achieves state-of-the-art results on all
+datasets. The image features and the code for the learn-
+ing algorithm used in our experiments are available at
+http://pikachu.ifp.uiuc.edu/zhenli3/learndecfunc.
+
+4.1. VIPeR
+
+The VIPeR dataset consists of images from 632 pedes-
+trians with resolution 48  128. For each person, a pair of
+images are taken from cameras with widely differing views.
+Viewpoint change of 90 degrees or more as well as huge
+lighting variations make this dataset one of the most chal-
+lenging datasets available for human body verication. Ex-
+ample images are shown in Figure 4.1.
+
+We follow [28] to extract high level image features based
+on simple patch color descriptors. To accelerate the learn-
+ing process, we further reduce the dimensionality of the -
+
+Figure 4. Example images of VIPer dataset. Each column shows
+two images of the same pedestrian captured under two different
+cameras.
+
+nal feature representation to 600 using PCA (learned on the
+training set). We also follow exactly the same setup as in
+[10, 11, 3]: each time half of the 632 people are selected
+randomly to form the training set, and the remaining people
+are left for testing (so that no people will appear in both the
+training and testing). The cumulative matching characteris-
+tic (CMC) curve, an estimate of the expectation of nding
+the correct match in the top n matches, is calculated on the
+testing set to measure the verication performance (see [10]
+for details on computing the CMC curve). The nal results
+are averaged over ten random runs.
+
+Figure 5(a) compares our proposed method with clas-
+sic ML algorithms: LMNN [24] and ITML [5], using the
+same feature. It is apparent that, in the verication problem,
+the optimal second-order decision function (4) does signi-
+cantly improve over traditional ML approaches with a xed
+threshold (2). Note that here LMNN performs the worst.
+One of possible reason is that each class contains only two
+examples with huge intra-class variations. We are also in-
+terested in comparing with other state-of-the-art methods
+on this dataset, though different features and/or learning
+algorithms have been used. Figure 5(b) shows the com-
+parison with PS [3], SDALF [8], ELF [11], and PRSVM
+[20]. Clearly our method outperforms all previous works
+and achieves state-of-art performance.
+4.2. CAVIAR4REID
+CAVIAR4REID [3],
+
+extracted from the CAVIAR
+dataset, is another famous dataset widely used for person
+verication tasks. This dataset not only covers a wide range
+of poses and real surveillance footage, but also includes
+multiple images per pedestrian with different view angles
+and resolutions. There are in total 72 pedestrians, and each
+person has images recorded from two different cameras in
+an indoor shopping mall in Lisbon. All the human body
+images have been cropped with respect to the ground truth,
+and the resolution various from 17  39 to 72  144. Here
+we extract the same image feature as in Section 4.1, and we
+also use the same training/testing protocol.
+
+Again, we compare with popular ML algorithms as well
+
+3613
+3613
+3615
+
+e
+g
+a
+
+t
+
+n
+e
+c
+r
+e
+P
+n
+o
+
+ 
+
+i
+t
+i
+
+n
+g
+o
+c
+e
+R
+
+e
+g
+a
+
+t
+
+n
+e
+c
+r
+e
+P
+n
+o
+
+ 
+
+i
+t
+i
+
+n
+g
+o
+c
+e
+R
+
+1
+
+0.9
+
+0.8
+
+0.7
+
+0.6
+
+0.5
+
+0.4
+
+0.3
+
+0.2
+
+0.1
+
+1
+
+0.9
+
+0.8
+
+0.7
+
+0.6
+
+0.5
+
+0.4
+
+0.3
+
+0.2
+
+0.1
+
+CMC Curve for VIPeR Dataset
+
+Ours
+ITML
+LMNN
+
+5
+
+10
+
+15
+
+20
+
+25
+
+Rank Score
+
+30
+
+35
+
+40
+
+45
+
+50
+
+(a) Comparison with metric learning algorithms.
+
+CMC Curve for VIPeR Dataset
+
+Ours
+PS
+PRSVM
+SDALF
+ELF
+
+5
+
+10
+
+15
+
+20
+
+25
+
+Rank Score
+
+30
+
+35
+
+40
+
+45
+
+50
+
+e
+g
+a
+
+t
+
+n
+e
+c
+r
+e
+P
+n
+o
+
+ 
+
+i
+t
+i
+
+n
+g
+o
+c
+e
+R
+
+e
+g
+a
+
+t
+
+n
+e
+c
+r
+e
+P
+n
+o
+
+ 
+
+i
+t
+i
+
+n
+g
+o
+c
+e
+R
+
+0.9
+
+0.8
+
+0.7
+
+0.6
+
+0.5
+
+0.4
+
+0.3
+
+0.2
+
+0.1
+
+0.9
+
+0.8
+
+0.7
+
+0.6
+
+0.5
+
+0.4
+
+0.3
+
+0.2
+
+0.1
+
+CMC Curve for CAVIAR4REID Dataset
+
+2
+
+4
+
+6
+
+8
+
+Rank Score
+
+10
+
+12
+
+Ours
+ITML
+LMNN
+
+14
+
+(a) Comparison with metric learning algorithms.
+
+CMC Curve for CAVIAR4REID Dataset
+
+2
+
+4
+
+6
+
+8
+
+Rank Score
+
+10
+
+12
+
+14
+
+Ours
+PS
+SDALF
+
+(b) Comparison with other state-of-art algorithms.
+
+Figure 5. Experimental results on VIPeR dataset.
+
+(b) Comparison with other state-of-art algorithms.
+
+Figure 6. Experimental results on CAVIAR4REID dataset.2
+
+as other state-of-the-art approaches, as shown in Figure 6(a)
+and Figure 6(b), respectively. Similarly as in Section 4.1,
+we observe a substantial improvement over traditional ML
+algorithms, and our method also outperforms state-of-the-
+art works including PS [3] and SDALF [8]. It should be
+noted that, the curves by both PS and SDALF shown in 6(b)
+have been extrapolated for the sake of fair comparison. The
+reason is that we have to separate a subset of 36 people for
+learning the parameters of our decision function (4) or dis-
+tance metric. With only half of the people left in testing, we
+rescale the horizontal axis of PS and SDALF by 50% for a
+fair comparison.
+4.3. LFW
+
+The Labeled Faces in the Wild (LFW) [16] is a
+database of face images designed for studying the problem
+of unconstrained face recognition. The face images were
+downloaded from Yahoo! News in 20022003, and demon-
+strate a large variety of pose, expression, lighting, etc. The
+dataset contains more than 13,000 face images from 5,749
+people, among which 1,680 people have two or more dis-
+tinct photos. We extract the same high level image feature
+
+as in Section 4.1 and 4.2, except that SIFT [18] descriptors
+are computed for local patches instead of color, as suggested
+by [12]. The features are reduced to 500 dimensions using
+PCA.
+
+We test our algorithm under the standard image re-
+stricted setting that is particularly designed for verication.
+In this setting, the dataset is divided into 10 fully indepen-
+dent folds, and it is ensured that not the same person appears
+across different folds. The identities of the people are hid-
+den from use; instead, 300 positive and 300 negative image
+pairs are provided within each fold. Figure 3 shows some
+examples of positive and negative image pairs. Each time
+we learn both the PCA projection and the parameters of our
+decision function on 9 training folds, and evaluate on the
+remaining fold. Pairwise classication accuracy averaged
+over 10 runs is reported, as suggested by [16].
+
+As shown in Table 1, our approach signicantly outper-
+forms state-of-the-art works on the LFW dataset. It should
+be noted that our verication accuracy of 89.6% outperfoms
+
+2We have rescaled the curves by PS [3] and SDALF [8] for a fair com-
+
+parison. See text.
+
+3614
+3614
+3616
+
+Table 1. Comparison with state-of-the-art algorithms on LFW
+dataset. The best performance is highlighted in bold.
+
+Methods
+
+Accuracy (%)
+
+MERL+Nowak [14]
+
+LDML [12]
+
+LBP + CSML [19]
+CSML + SVM [19]
+
+Combined b/g samples [25]
+DML-eig combined [27]
+
+Deep Learning combined [15]
+
+Our method
+
+76.2
+79.3
+85.6
+88.0
+86.8
+85.7
+87.8
+89.6
+
+the best reported results3 in LFW under the category of no
+outside data is used beyond alignment/feature extraction.
+This result also signicantly improves our previous work in
+[17].
+
+5. Conclusion
+
+In this paper, we propose to learn a decision function
+for the verication problem. Our second-order formu-
+lation generalizes from traditional metric learning (ML)
+approaches by offering a locally adaptive decision rule.
+Compared with existing approaches including ML, our ap-
+proach demonstrates state-of-the-art performance on sev-
+eral person verication benchmark datasets such as VIPeR,
+CAVIAR4REID, and LFW.
+
+References
+[1] C. Burges. Advances in kernel methods: support vector
+
+learning. The MIT press, 1999. 2, 3, 5
+
+[2] X. Chen, Z. Tong, H. Liu, and D. Cai. Metric learning with
+two-dimensional smoothness for visual analysis. In CVPR,
+pages 25332538, 2012. 2
+
+[3] D. Cheng, M. Cristani, M. Stoppa, L. Bazzani, and
+V. Murino. Custom pictorial structures for re-identication.
+In BMVC, 2011. 6, 7
+
+[4] C. Cortes and V. Vapnik. Support-vector networks. Machine
+
+Learning, 20(3):273297, 1995. 4, 5
+
+[5] J. Davis, B. Kulis, P. Jain, S. Sra, and I. Dhillon. Information-
+
+theoretic metric learning. In ICML, 2007. 6
+
+[6] M. Dikmen, E. Akbas, T. Huang, and N. Ahuja. Pedestrian
+
+recognition with a learned metric. In ACCV, 2010. 2
+
+[7] R.-E. Fan, P.-H. Chen, and C.-J. Lin. Working set selection
+using second order information for training support vector
+machines. Journal of Machine Learning Research, 6:1889
+1918, 2005. 5
+
+[8] M. Farenzena, L. Bazzani, A. Perina, V. Murino, and
+M. Cristani. Person re-identication by symmetry-driven ac-
+cumulation of local features. In CVPR, 2010. 6, 7
+
+[9] N. Gilardi and S. Bengio. Local machine learning models
+for spatial data analysis. Journal of Geographic Information
+and Decision Analysis, 4(1):1128, 2000. 2
+
+3http://vis-www.cs.umass.edu/lfw/results.html
+
+[10] D. Gray, S. Brennan, and H. Tao. Evaluating appearance
+models for recognition, reacquisition, and tracking. In Work-
+shop on Performance Evaluation for Tracking and Surveil-
+lance (PETS), 2007. 6
+
+[11] D. Gray and H. Tao. Viewpoint invariant pedestrian recogni-
+tion with an ensemble of localized features. In ECCV, 2008.
+6
+
+[12] M. Guillaumin, J. Verbeek, and C. Schmid.
+
+Is that you?
+metric learning approaches for face identication. In ICCV,
+2009. 2, 7, 8
+
+[13] C. Huang, S. Zhu, and K. Yu. Large scale strongly supervised
+ensemble metric learning, with applications to face verica-
+tion and retrieval. Technical report, NEC, 2012. 6
+
+[14] G. Huang, M. Jones, E. Learned-Miller, et al. Lfw results
+using a combined nowak plus merl recognizer. In Workshop
+on Faces in Real-Life Images at ECCV, 2008. 8
+
+[15] G. Huang, H. Lee, and E. Learned-Miller. Learning hier-
+archical representations for face verication with convolu-
+tional deep belief networks.
+In CVPR, pages 25182525,
+2012. 8
+
+[16] G. B. Huang, M. Ramesh, T. Berg, and E. Learned-Miller.
+Labeled faces in the wild: A database for studying face
+recognition in unconstrained environments. Technical Re-
+port 07-49, University of Massachusetts, Amherst, October
+2007. 4, 6, 7
+
+[17] Z. Li, L. Cao, S. Chang, J. R. Smith, and T. S. Huang. Be-
+yond mahalanobis distance: Learning second-order discrim-
+inant function for people verication. In CVPR Workshops,
+pages 4550, 2012. 8
+
+[18] D. G. Lowe. Object recognition from local scale-invariant
+
+features. In ICCV, pages 11501157, 1999. 7
+
+[19] H. V. Nguyen and L. Bai. Cosine similarity metric learning
+
+for face verication. In ACCV, 2010. 2, 8
+
+[20] K. Okuma, A. Taleghani, N. de Freitas, J. J. Little, and D. G.
+Lowe. A boosted particle lter: Multitarget detection and
+tracking. In ECCV, 2004. 6
+
+[21] J. Platt. Sequential minimal optimization: A fast algorithm
+
+for training support vector machines. 1998. 5
+
+[22] J. Sanchez and F. Perronnin. High-dimensional signature
+compression for large-scale image classication. In CVPR,
+2011. 2
+
+[23] S. Shalev-Shwartz, Y. Singer, and N. Srebro. Pegasos: Pri-
+mal estimated sub-gradient solver for svm. In ICML, 2007.
+5
+
+[24] K. Q. Weinberger and L. K. Saul. Distance metric learning
+for large margin nearest neighbor classication. Journal of
+Machine Learning Research, 10:207244, 2009. 6
+
+[25] L. Wolf, T. Hassner, and Y. Taigman. Similarity scores based
+
+on background samples. In ACCV, 2009. 8
+
+[26] L. Yang and R. Jin. Distance metric learning: A comprehen-
+
+sive survey. Michigan State Universiy, 2006. 2
+
+[27] Y. Ying and P. Li. Distance metric learning with eigenvalue
+optimization. Journal of Machine Learning Research, 13:1
+26, 2012. 8
+
+[28] X. Zhou, N. Cui, Z. Li, F. Liang, and T. S. Huang. Hierarchi-
+cal gaussianization for image classication. In ICCV, 2009.
+2, 6
+
+3615
+3615
+3617
+
+
